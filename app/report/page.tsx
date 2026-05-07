@@ -211,47 +211,53 @@ export default function ReportPage() {
 
   // ========== সাবমিট ==========
   const handleSubmit = async () => {
-    if (!validateStep(4)) return;
-    if (!location) {
-      setLocationError("লোকেশন প্রয়োজন");
-      return;
-    }
+  if (!validateStep(4)) return;
+  if (!location) {
+    setLocationError("লোকেশন প্রয়োজন");
+    return;
+  }
 
-    setIsSubmitting(true);
+  setIsSubmitting(true);
 
-    const deviceId = localStorage.getItem("deviceId") || uuidv4();
-    localStorage.setItem("deviceId", deviceId);
+  const deviceId = localStorage.getItem("deviceId") || uuidv4();
+  localStorage.setItem("deviceId", deviceId);
 
-    const issue = {
-      id: uuidv4(),
-      title: title.trim(),
-      description: description.trim(),
-      category: category || "other",
-      images,
-      location,
-      status: "reported" as const,
-      votes: 1,
-      votedBy: [deviceId],
-      createdBy: deviceId,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      comments: [],
-    };
+  // ✅ category টাইপ কাস্ট করুন
+  const validCategory = (
+    ["road", "electricity", "water", "garbage", "drainage", "other"].includes(category)
+      ? category
+      : "other"
+  ) as "road" | "electricity" | "water" | "garbage" | "drainage" | "other";
 
-    try {
-      await addIssue(issue);
-      setShowSuccess(true);
-
-      // ২ সেকেন্ড পর হোমে রিডাইরেক্ট
-      setTimeout(() => {
-        router.push("/");
-      }, 2000);
-    } catch (error) {
-      alert("সাবমিট করতে সমস্যা হয়েছে। আবার চেষ্টা করুন।");
-    }
-
-    setIsSubmitting(false);
+  const issue = {
+    id: uuidv4(),
+    title: title.trim(),
+    description: description.trim(),
+    category: validCategory, // ✅ টাইপ সুরক্ষিত
+    images,
+    location,
+    status: "reported" as const,
+    votes: 1,
+    votedBy: [deviceId],
+    createdBy: deviceId,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    comments: [],
   };
+
+  try {
+    await addIssue(issue);
+    setShowSuccess(true);
+
+    setTimeout(() => {
+      router.push("/");
+    }, 2000);
+  } catch (error) {
+    alert("সাবমিট করতে সমস্যা হয়েছে। আবার চেষ্টা করুন।");
+  }
+
+  setIsSubmitting(false);
+};
 
   // ========== অটো-লোকেশন (স্টেপ ৪ এ গেলেই) ==========
   //   useEffect(() => {
