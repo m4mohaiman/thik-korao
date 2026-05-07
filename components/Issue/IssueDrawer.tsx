@@ -254,10 +254,10 @@ export default function IssueDrawer({ issue, onClose }: IssueDrawerProps) {
                   রিপোর্টের তারিখ
                 </div>
                 <p className="text-sm font-medium text-gray-700">
-                  {formatDate(issue.createdAt)}
+                  {formatDate(issue.created_at)}
                 </p>
                 <p className="text-xs text-gray-400 mt-0.5">
-                  {timeAgo(issue.createdAt)}
+                  {timeAgo(issue.created_at)}
                 </p>
               </div>
 
@@ -444,7 +444,7 @@ function CommentBubble({
   comment: {
     text: string;
     isOfficial?: boolean;
-    createdAt?: Date;
+    created_at?: Date;
     id?: string;
   };
 }) {
@@ -472,9 +472,9 @@ function CommentBubble({
         }`}
       >
         <p>{comment.text}</p>
-        {comment.createdAt && (
+        {comment.created_at && (
           <p className="text-xs text-gray-400 mt-1">
-            {timeAgo(comment.createdAt)}
+            {timeAgo(comment.created_at)}
           </p>
         )}
       </div>

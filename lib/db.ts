@@ -9,7 +9,7 @@ class ThikKoraoDB extends Dexie {
   constructor() {
     super("thikKoraoDB");
     this.version(1).stores({
-      issues: "id, status, category, createdAt, votes",
+      issues: "id, status, category, created_at, votes",
       pendingSync: "++id, timestamp",
     });
   }

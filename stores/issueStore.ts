@@ -1,54 +1,158 @@
-// src/stores/issueStore.ts
+"use client";
+
 import { create } from "zustand";
-import { Issue } from "@/types";
-import { db } from "@/lib/db";
+import { createClient } from "@/lib/supabase/client"; // ✅ ইম্পোর্ট
+
+// ========== টাইপ ==========
+export interface Issue {
+  id: string;
+  title: string;
+  description: string;
+  category: "road" | "electricity" | "water" | "garbage" | "drainage" | "other";
+  images: string[];
+  location: {
+    lat: number;
+    lng: number;
+    address?: string;
+  };
+  status: "reported" | "acknowledged" | "in-progress" | "resolved" | "rejected";
+  votes: number;
+  voted_by: string[];
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+  comments: Comment[];
+  profiles?: {
+    full_name: string | null;
+    avatar_url: string | null;
+  };
+}
+
+export interface Comment {
+  id: string;
+  issue_id: string;
+  user_id: string;
+  text: string;
+  is_official: boolean;
+  created_at: string;
+  profiles?: {
+    full_name: string | null;
+    avatar_url: string | null;
+  };
+}
 
 interface IssueStore {
   issues: Issue[];
   selectedIssue: Issue | null;
   isLoading: boolean;
-  
-  // Actions
+
   loadIssues: () => Promise<void>;
-  addIssue: (issue: Issue) => Promise<void>;
-  voteIssue: (issueId: string, deviceId: string) => Promise<void>;
+  addIssue: (issue: any) => Promise<void>;
+  voteIssue: (issueId: string, userId: string) => Promise<void>;
   updateStatus: (issueId: string, status: Issue["status"]) => Promise<void>;
   setSelectedIssue: (issue: Issue | null) => void;
+  fetchIssueById: (id: string) => Promise<void>;
 }
+
+// ✅✅✅ এখানে supabase ক্লায়েন্ট ক্রিয়েট ✅✅✅
+const supabase = createClient();
 
 export const useIssueStore = create<IssueStore>((set, get) => ({
   issues: [],
   selectedIssue: null,
   isLoading: false,
 
+  // ========== সব ইস্যু লোড ==========
   loadIssues: async () => {
     set({ isLoading: true });
-    const issues = await db.issues.toArray();
-    set({ issues, isLoading: false });
-  },
 
-  addIssue: async (issue) => {
-    await db.issues.add(issue);
-    const issues = await db.issues.toArray();
-    set({ issues });
-  },
+    console.log("Fetching issues...");
 
-  voteIssue: async (issueId, deviceId) => {
-    const issue = await db.issues.get(issueId);
-    if (issue && !issue.votedBy.includes(deviceId)) {
-      issue.votes += 1;
-      issue.votedBy.push(deviceId);
-      await db.issues.put(issue);
-      const issues = await db.issues.toArray();
-      set({ issues });
+    const { data, error } = await supabase
+      .from("issues")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    console.log("Supabase response:", { data, error });
+
+    if (error) {
+      console.error("Load issues error:", error);
+      set({ isLoading: false });
+      return;
     }
+
+    console.log("Loaded issues:", data?.length);
+    set({
+      issues: data || [],
+      isLoading: false,
+    });
   },
 
+  // ========== নতুন ইস্যু অ্যাড ==========
+  addIssue: async (issue) => {
+    const { error } = await supabase.from("issues").insert(issue);
+    if (error) throw error;
+    await get().loadIssues();
+  },
+
+  // ========== ভোট ==========
+  voteIssue: async (issueId, userId) => {
+    const issue = get().issues.find((i) => i.id === issueId);
+    if (!issue || issue.voted_by.includes(userId)) return;
+
+    const newvoted_by = [...issue.voted_by, userId];
+    const newVotes = issue.votes + 1;
+
+    set({
+      issues: get().issues.map((i) =>
+        i.id === issueId
+          ? { ...i, votes: newVotes, voted_by: newvoted_by }
+          : i
+      ),
+    });
+
+    await supabase
+      .from("issues")
+      .update({ votes: newVotes, voted_by: newvoted_by })
+      .eq("id", issueId);
+  },
+
+  // ========== স্ট্যাটাস আপডেট ==========
   updateStatus: async (issueId, status) => {
-    await db.issues.update(issueId, { status, updatedAt: new Date() });
-    const issues = await db.issues.toArray();
-    set({ issues });
+    set({
+      issues: get().issues.map((i) =>
+        i.id === issueId
+          ? { ...i, status, updated_at: new Date().toISOString() }
+          : i
+      ),
+      selectedIssue:
+        get().selectedIssue?.id === issueId
+          ? { ...get().selectedIssue!, status }
+          : get().selectedIssue,
+    });
+
+    await supabase
+      .from("issues")
+      .update({ status, updated_at: new Date().toISOString() })
+      .eq("id", issueId);
   },
 
+  // ========== সিলেক্টেড ইস্যু ==========
   setSelectedIssue: (issue) => set({ selectedIssue: issue }),
+
+  // ========== ID দিয়ে ফেচ ==========
+  fetchIssueById: async (id) => {
+    const { data, error } = await supabase
+      .from("issues")
+      .select("*")
+      .eq("id", id)
+      .single();
+
+    if (error) {
+      console.error("Fetch issue error:", error);
+      return;
+    }
+
+    set({ selectedIssue: data as Issue });
+  },
 }));

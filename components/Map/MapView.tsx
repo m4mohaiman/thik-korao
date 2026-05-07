@@ -16,7 +16,7 @@ import { getCurrentPosition, reverseGeocode } from "@/lib/location";
 import { MapPin } from "lucide-react";
 import MapMarker from "./MapMarker";
 
-// ========== লোকেশন ট্র্যাকার (নিজের অবস্থান দেখাবে) ==========
+// ========== লোকেশন ট্র্যাকার ==========
 function LocationTracker() {
   const map = useMap();
   const [position, setPosition] = useState<[number, number] | null>(null);
@@ -29,13 +29,18 @@ function LocationTracker() {
           pos.coords.longitude,
         ];
         setPosition(coords);
-        map.setView(coords, 15);
+        // ✅ map অবজেক্ট চেক করে নিন
+        if (map && typeof map.setView === "function") {
+          map.setView(coords, 15);
+        }
       })
       .catch(() => {
-        // ডিফল্ট ঢাকা
         const dhaka: [number, number] = [23.8103, 90.4125];
         setPosition(dhaka);
-        map.setView(dhaka, 12);
+        // ✅ চেক করুন map আছে কিনা
+        if (map && typeof map.setView === "function") {
+          map.setView(dhaka, 12);
+        }
       });
   }, [map]);
 
@@ -50,14 +55,7 @@ function LocationTracker() {
           border-radius: 50%;
           box-shadow: 0 0 0 4px rgba(59,130,246,0.3);
           animation: pulse 2s infinite;
-        "></div>
-        <style>
-          @keyframes pulse {
-            0% { box-shadow: 0 0 0 4px rgba(59,130,246,0.3); }
-            50% { box-shadow: 0 0 0 12px rgba(59,130,246,0); }
-            100% { box-shadow: 0 0 0 4px rgba(59,130,246,0.3); }
-          }
-        </style>`,
+        "></div>`,
         iconSize: [16, 16],
         className: "",
       })}
@@ -252,7 +250,6 @@ export default function MapView() {
           onClick={() => {
             const map = document.querySelector(".leaflet-container");
             if (map) {
-              // @ts-ignore — Leaflet instance access
               map._leaflet_map?.zoomIn();
             }
           }}

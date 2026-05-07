@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo } from "react";
+import { useAuthStore } from "@/stores/authStore";
 import { useIssueStore } from "@/stores/issueStore";
 import Link from "next/link";
 import {
@@ -17,12 +18,26 @@ import {
   ChevronDown,
   RefreshCw,
   PieChart,
+  Shield,
 } from "lucide-react";
 
 // ========== টাইপ ==========
 type TimeFilter = "today" | "week" | "month" | "all";
-type StatusFilter = "all" | "reported" | "acknowledged" | "in-progress" | "resolved" | "rejected";
-type CategoryFilter = "all" | "road" | "electricity" | "water" | "garbage" | "drainage" | "other";
+type StatusFilter =
+  | "all"
+  | "reported"
+  | "acknowledged"
+  | "in-progress"
+  | "resolved"
+  | "rejected";
+type CategoryFilter =
+  | "all"
+  | "road"
+  | "electricity"
+  | "water"
+  | "garbage"
+  | "drainage"
+  | "other";
 
 export default function DashboardPage() {
   const { issues, loadIssues } = useIssueStore();
@@ -32,6 +47,7 @@ export default function DashboardPage() {
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const profile = useAuthStore((state) => state.profile);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -52,7 +68,7 @@ export default function DashboardPage() {
       if (timeFilter === "today") filterDate.setHours(0, 0, 0, 0);
       if (timeFilter === "week") filterDate.setDate(now.getDate() - 7);
       if (timeFilter === "month") filterDate.setMonth(now.getMonth() - 1);
-      result = result.filter((i) => new Date(i.createdAt) >= filterDate);
+      result = result.filter((i) => new Date(i.created_at) >= filterDate);
     }
 
     // স্ট্যাটাস ফিল্টার
@@ -72,7 +88,8 @@ export default function DashboardPage() {
         (i) =>
           i.title.toLowerCase().includes(query) ||
           i.description.toLowerCase().includes(query) ||
-          (i.location.address && i.location.address.toLowerCase().includes(query))
+          (i.location.address &&
+            i.location.address.toLowerCase().includes(query)),
       );
     }
 
@@ -85,7 +102,9 @@ export default function DashboardPage() {
     const resolved = issues.filter((i) => i.status === "resolved").length;
     const inProgress = issues.filter((i) => i.status === "in-progress").length;
     const reported = issues.filter((i) => i.status === "reported").length;
-    const acknowledged = issues.filter((i) => i.status === "acknowledged").length;
+    const acknowledged = issues.filter(
+      (i) => i.status === "acknowledged",
+    ).length;
     const rejected = issues.filter((i) => i.status === "rejected").length;
     const totalVotes = issues.reduce((sum, i) => sum + i.votes, 0);
 
@@ -107,7 +126,7 @@ export default function DashboardPage() {
         day: "numeric",
       });
       const count = issues.filter((issue) => {
-        const issueDate = new Date(issue.createdAt);
+        const issueDate = new Date(issue.created_at);
         return (
           issueDate.getDate() === d.getDate() &&
           issueDate.getMonth() === d.getMonth() &&
@@ -145,14 +164,22 @@ export default function DashboardPage() {
   };
 
   const handleExportCSV = () => {
-    const headers = ["ID", "Title", "Category", "Status", "Votes", "Date", "Location"];
+    const headers = [
+      "ID",
+      "Title",
+      "Category",
+      "Status",
+      "Votes",
+      "Date",
+      "Location",
+    ];
     const rows = filteredIssues.map((i) => [
       i.id,
       `"${i.title.replace(/"/g, '""')}"`,
       i.category,
       i.status,
       i.votes,
-      new Date(i.createdAt).toLocaleDateString(),
+      new Date(i.created_at).toLocaleDateString(),
       `"${(i.location.address || "").replace(/"/g, '""')}"`,
     ]);
     const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
@@ -232,6 +259,22 @@ export default function DashboardPage() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
+        <div className="bg-white p-5 rounded-2xl shadow-sm mb-6 flex items-center gap-4">
+          <div className="w-14 h-14 bg-purple-100 rounded-full flex items-center justify-center">
+            <Shield className="w-7 h-7 text-purple-600" />
+          </div>
+          <div>
+            <h2 className="font-bold text-lg text-gray-900">
+              স্বাগতম, {profile?.full_name || "অ্যাডমিন"} 👋
+            </h2>
+            <p className="text-sm text-purple-600 font-medium">
+              🔑 অ্যাডমিন অ্যাক্সেস
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
         {/* ========== স্ট্যাট কার্ড ========== */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <StatCard
@@ -304,7 +347,10 @@ export default function DashboardPage() {
               <PieChart className="w-5 h-5 text-purple-500" />
               ক্যাটাগরি ভিত্তিক
             </h3>
-            <CategoryDistribution data={stats.categoryCount} total={stats.total} />
+            <CategoryDistribution
+              data={stats.categoryCount}
+              total={stats.total}
+            />
           </div>
         </div>
 
@@ -361,11 +407,15 @@ export default function DashboardPage() {
             <table className="w-full">
               <thead>
                 <tr className="bg-gray-50 border-b">
-                  <th className="text-left p-4 text-sm font-medium text-gray-500">সমস্যা</th>
+                  <th className="text-left p-4 text-sm font-medium text-gray-500">
+                    সমস্যা
+                  </th>
                   <th className="text-left p-4 text-sm font-medium text-gray-500 hidden md:table-cell">
                     ক্যাটাগরি
                   </th>
-                  <th className="text-left p-4 text-sm font-medium text-gray-500">স্ট্যাটাস</th>
+                  <th className="text-left p-4 text-sm font-medium text-gray-500">
+                    স্ট্যাটাস
+                  </th>
                   <th className="text-center p-4 text-sm font-medium text-gray-500 hidden sm:table-cell">
                     ভোট
                   </th>
@@ -388,8 +438,8 @@ export default function DashboardPage() {
                   filteredIssues
                     .sort(
                       (a, b) =>
-                        new Date(b.createdAt).getTime() -
-                        new Date(a.createdAt).getTime()
+                        new Date(b.created_at).getTime() -
+                        new Date(a.created_at).getTime(),
                     )
                     .map((issue) => (
                       <tr
@@ -422,12 +472,12 @@ export default function DashboardPage() {
                           </span>
                         </td>
                         <td className="p-4 text-right text-sm text-gray-500 hidden md:table-cell">
-                          {new Date(issue.createdAt).toLocaleDateString(
+                          {new Date(issue.created_at).toLocaleDateString(
                             "bn-BD",
                             {
                               day: "numeric",
                               month: "short",
-                            }
+                            },
                           )}
                         </td>
                       </tr>
@@ -460,10 +510,14 @@ function StatCard({
 }) {
   return (
     <div className="bg-white p-4 rounded-2xl shadow-sm">
-      <div className={`w-10 h-10 ${bgColor} rounded-full flex items-center justify-center ${color} mb-3`}>
+      <div
+        className={`w-10 h-10 ${bgColor} rounded-full flex items-center justify-center ${color} mb-3`}
+      >
         {icon}
       </div>
-      <div className="text-2xl font-bold text-gray-900">{value.toLocaleString()}</div>
+      <div className="text-2xl font-bold text-gray-900">
+        {value.toLocaleString()}
+      </div>
       <div className="text-sm text-gray-500">{label}</div>
     </div>
   );
@@ -472,16 +526,24 @@ function StatCard({
 // স্ট্যাটাস ব্যাজ (ছোট)
 function StatusBadge({ status }: { status: string }) {
   const config: Record<string, { label: string; className: string }> = {
-    reported: { label: "জমা পড়েছে", className: "bg-orange-100 text-orange-700" },
+    reported: {
+      label: "জমা পড়েছে",
+      className: "bg-orange-100 text-orange-700",
+    },
     acknowledged: { label: "গৃহীত", className: "bg-blue-100 text-blue-700" },
-    "in-progress": { label: "কাজ চলছে", className: "bg-purple-100 text-purple-700" },
+    "in-progress": {
+      label: "কাজ চলছে",
+      className: "bg-purple-100 text-purple-700",
+    },
     resolved: { label: "সমাধান", className: "bg-green-100 text-green-700" },
     rejected: { label: "বাতিল", className: "bg-red-100 text-red-700" },
   };
   const c = config[status] || config.reported;
 
   return (
-    <span className={`text-xs px-2 py-1 rounded-full font-medium ${c.className}`}>
+    <span
+      className={`text-xs px-2 py-1 rounded-full font-medium ${c.className}`}
+    >
       {c.label}
     </span>
   );
@@ -512,11 +574,16 @@ function FilterGroup({
         <Filter className="w-3.5 h-3.5 text-gray-400" />
         <span className="text-gray-600">{label}:</span>
         <span className="font-medium text-gray-800">{selectedLabel}</span>
-        <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+        <ChevronDown
+          className={`w-3.5 h-3.5 transition-transform ${isOpen ? "rotate-180" : ""}`}
+        />
       </button>
       {isOpen && (
         <>
-          <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
+          <div
+            className="fixed inset-0 z-10"
+            onClick={() => setIsOpen(false)}
+          />
           <div className="absolute top-full left-0 mt-1 bg-white border rounded-xl shadow-lg z-20 min-w-[140px] overflow-hidden">
             {options.map((option) => (
               <button
@@ -548,7 +615,10 @@ function BarChart({ data }: { data: { date: string; count: number }[] }) {
   return (
     <div className="flex items-end gap-2 h-40">
       {data.map((item, index) => (
-        <div key={index} className="flex-1 flex flex-col items-center gap-1 h-full justify-end">
+        <div
+          key={index}
+          className="flex-1 flex flex-col items-center gap-1 h-full justify-end"
+        >
           <span className="text-xs font-medium text-gray-700">
             {item.count > 0 ? item.count : ""}
           </span>

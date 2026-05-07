@@ -4,9 +4,9 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { v4 as uuidv4 } from "uuid";
-import { useIssueStore } from "@/stores/issueStore";
+import { useAuthStore } from "@/stores/authStore";
+import { createClient } from "@/lib/supabase/client";
 import { getCurrentPosition, reverseGeocode } from "@/lib/location";
-import { compressImage } from "@/lib/image";
 import CameraCapture from "@/components/UI/Camera";
 import dynamic from "next/dynamic";
 import Image from "next/image";
@@ -85,9 +85,25 @@ const STEPS = [
   { id: 4, label: "লোকেশন", icon: "📍" },
 ];
 
+const LocationPicker = dynamic(
+  () => import("@/components/UI/LocationPicker"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="fixed inset-0 z-[200] bg-black/50 flex items-center justify-center">
+        <div className="bg-white p-6 rounded-2xl text-center">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-500 mx-auto mb-2" />
+          <p className="text-gray-500">ম্যাপ লোড হচ্ছে...</p>
+        </div>
+      </div>
+    ),
+  }
+);
+
 export default function ReportPage() {
   const router = useRouter();
-  const { addIssue } = useIssueStore();
+  const supabase = createClient();
+  const user = useAuthStore((state) => state.user);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ========== স্টেট ==========
@@ -104,16 +120,23 @@ export default function ReportPage() {
 
   const [isLocating, setIsLocating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [locationError, setLocationError] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [showSuccess, setShowSuccess] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
   const [showLocationPicker, setShowLocationPicker] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0); // 0-100
+  const [uploadStatus, setUploadStatus] = useState("");
 
-  const LocationPicker = dynamic(
-    () => import("@/components/UI/LocationPicker"),
-    { ssr: false },
-  );
+ 
+
+  // ========== লগইন চেক ==========
+  useEffect(() => {
+    if (!user) {
+      router.push("/auth/login?next=/report");
+    }
+  }, [user, router]);
 
   // ========== ভ্যালিডেশন ==========
   const validateStep = (step: number): boolean => {
@@ -133,7 +156,6 @@ export default function ReportPage() {
           newErrors.description = "বিবরণ কমপক্ষে ১০ অক্ষরের হতে হবে";
         break;
       case 3:
-        // ছবি optional
         break;
       case 4:
         if (!location) newErrors.location = "লোকেশন নির্বাচন করুন";
@@ -145,33 +167,28 @@ export default function ReportPage() {
   };
 
   // ========== নেভিগেশন ==========
-  // নেক্সট স্টেপ
   const handleNext = () => {
     if (validateStep(currentStep)) {
       const nextStep = currentStep + 1;
       setCurrentStep(nextStep);
       window.scrollTo({ top: 0, behavior: "smooth" });
 
-      // অটো-লোকেশন যখন স্টেপ ৪ এ পৌঁছায়
       if (nextStep === 4 && !location && !isLocating) {
         handleGetLocation();
       }
     }
   };
 
-  // প্রিভিয়াস স্টেপ
   const handlePrev = () => {
     const prevStep = currentStep - 1;
     setCurrentStep(prevStep);
     window.scrollTo({ top: 0, behavior: "smooth" });
 
-    // ব্যাক করেও স্টেপ ৪ এ এলে লোকেশন নিন (যদি না থাকে)
     if (prevStep === 4 && !location && !isLocating) {
       handleGetLocation();
     }
   };
 
-  // স্টেপ ইন্ডিকেটরে ক্লিক করে আগের স্টেপে যাওয়া
   const goToStep = (step: number) => {
     if (step <= currentStep) {
       setCurrentStep(step);
@@ -195,7 +212,7 @@ export default function ReportPage() {
       setLocation({ lat, lng, address });
     } catch (error: any) {
       setLocationError(
-        "লোকেশন পাওয়া যায়নি। দয়া করে লোকেশন পারমিশন দিন অথবা ম্যানুয়ালি লোকেশন সার্চ করুন।",
+        "লোকেশন পাওয়া যায়নি। দয়া করে লোকেশন পারমিশন দিন অথবা ম্যানুয়ালি লোকেশন সার্চ করুন।"
       );
     }
 
@@ -203,68 +220,141 @@ export default function ReportPage() {
   };
 
   // ========== ইমেজ হ্যান্ডলিং ==========
-
   const removeImage = (index: number) => {
     setImages(images.filter((_, i) => i !== index));
   };
 
+  // ========== ইমেজ Supabase Storage-এ আপলোড ==========
+ const uploadImagesToSupabase = async (
+  base64Images: string[]
+): Promise<string[]> => {
+  const uploadedUrls: string[] = [];
+  const totalImages = base64Images.length;
+
+  for (let i = 0; i < totalImages; i++) {
+    const base64 = base64Images[i];
+
+    // প্রোগ্রেস আপডেট
+    setUploadProgress(Math.round(((i + 1) / totalImages) * 80)); // 0-80% (ছবির জন্য)
+    setUploadStatus(`ছবি আপলোড হচ্ছে... (${i + 1}/${totalImages})`);
+
+    // base64 → Blob
+    const response = await fetch(base64);
+    const blob = await response.blob();
+
+    const fileExt = "jpg";
+    const fileName = `${user?.id}-${Date.now()}-${i}.${fileExt}`;
+    const filePath = `${fileName}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from("issue-images")
+      .upload(filePath, blob, {
+        contentType: "image/jpeg",
+        upsert: false,
+      });
+
+    if (uploadError) {
+      console.error("Image upload error:", uploadError);
+      continue;
+    }
+
+    const { data: urlData } = supabase.storage
+      .from("issue-images")
+      .getPublicUrl(filePath);
+
+    uploadedUrls.push(urlData.publicUrl);
+  }
+
+  return uploadedUrls;
+}
 
   // ========== সাবমিট ==========
-  const handleSubmit = async () => {
+const handleSubmit = async () => {
   if (!validateStep(4)) return;
   if (!location) {
     setLocationError("লোকেশন প্রয়োজন");
     return;
   }
 
+  if (!user) {
+    router.push("/auth/login?next=/report");
+    return;
+  }
+
   setIsSubmitting(true);
-
-  const deviceId = localStorage.getItem("deviceId") || uuidv4();
-  localStorage.setItem("deviceId", deviceId);
-
-  // ✅ category টাইপ কাস্ট করুন
-  const validCategory = (
-    ["road", "electricity", "water", "garbage", "drainage", "other"].includes(category)
-      ? category
-      : "other"
-  ) as "road" | "electricity" | "water" | "garbage" | "drainage" | "other";
-
-  const issue = {
-    id: uuidv4(),
-    title: title.trim(),
-    description: description.trim(),
-    category: validCategory, // ✅ টাইপ সুরক্ষিত
-    images,
-    location,
-    status: "reported" as const,
-    votes: 1,
-    votedBy: [deviceId],
-    createdBy: deviceId,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    comments: [],
-  };
+  setIsUploading(true);
+  setUploadProgress(0);
+  setUploadStatus("প্রস্তুতি নেওয়া হচ্ছে...");
 
   try {
-    await addIssue(issue);
-    setShowSuccess(true);
+    // ১. ছবি আপলোড (যদি থাকে)
+    let imageUrls: string[] = [];
+    if (images.length > 0) {
+      setUploadStatus("ছবি আপলোড শুরু হচ্ছে...");
+      imageUrls = await uploadImagesToSupabase(images);
+      setUploadProgress(80);
+      setUploadStatus("ছবি আপলোড সম্পন্ন ✅");
+    } else {
+      setUploadProgress(80);
+      setUploadStatus("কোনো ছবি নেই, স্কিপ করা হয়েছে");
+    }
 
+    // ২. ক্যাটাগরি ভ্যালিডেট
+    const validCategory = (
+      [
+        "road",
+        "electricity",
+        "water",
+        "garbage",
+        "drainage",
+        "other",
+      ].includes(category)
+        ? category
+        : "other"
+    ) as "road" | "electricity" | "water" | "garbage" | "drainage" | "other";
+
+    // ৩. ইস্যু Supabase-এ সেভ
+    setUploadProgress(90);
+    setUploadStatus("রিপোর্ট জমা দেওয়া হচ্ছে...");
+
+    const { error: insertError } = await supabase.from("issues").insert({
+      title: title.trim(),
+      description: description.trim(),
+      category: validCategory,
+      images: imageUrls,
+      location: {
+        lat: location.lat,
+        lng: location.lng,
+        address: location.address || "",
+      },
+      status: "reported",
+      votes: 1,
+      voted_by: [user.id],
+      created_by: user.id,
+    });
+
+    if (insertError) throw insertError;
+
+    // ৪. সাকসেস!
+    setUploadProgress(100);
+    setUploadStatus("রিপোর্ট সফলভাবে জমা হয়েছে! 🎉");
+    setIsUploading(false);
+
+    setShowSuccess(true);
     setTimeout(() => {
       router.push("/");
     }, 2000);
-  } catch (error) {
-    alert("সাবমিট করতে সমস্যা হয়েছে। আবার চেষ্টা করুন।");
+  } catch (error: any) {
+    console.error("Submit error:", error);
+    setIsUploading(false);
+    setUploadProgress(0);
+    setUploadStatus("");
+    alert("সাবমিট করতে সমস্যা হয়েছে। আবার চেষ্টা করুন।\n" + error.message);
   }
 
   setIsSubmitting(false);
+  setIsUploading(false);
 };
-
-  // ========== অটো-লোকেশন (স্টেপ ৪ এ গেলেই) ==========
-  //   useEffect(() => {
-  //     if (currentStep === 4 && !location) {
-  //       handleGetLocation();
-  //     }
-  //   }, [currentStep]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -278,7 +368,7 @@ export default function ReportPage() {
             <ArrowLeft className="w-5 h-5 text-gray-600" />
           </Link>
           <h1 className="font-semibold text-gray-900">সমস্যা রিপোর্ট</h1>
-          <div className="w-9" /> {/* Spacer */}
+          <div className="w-9" />
         </div>
       </header>
 
@@ -343,7 +433,9 @@ export default function ReportPage() {
                     {index < STEPS.length - 1 && (
                       <div
                         className={`flex-1 h-0.5 mx-2 ${
-                          currentStep > step.id ? "bg-green-500" : "bg-gray-200"
+                          currentStep > step.id
+                            ? "bg-green-500"
+                            : "bg-gray-200"
                         }`}
                       />
                     )}
@@ -352,7 +444,7 @@ export default function ReportPage() {
               </div>
             </div>
 
-            {/* ========== স্টেপ ১: ক্যাটাগরি নির্বাচন ========== */}
+            {/* ========== স্টেপ ১: ক্যাটাগরি ========== */}
             {currentStep === 1 && (
               <div className="space-y-6">
                 <div>
@@ -411,7 +503,6 @@ export default function ReportPage() {
                   </p>
                 </div>
 
-                {/* শিরোনাম */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
                     শিরোনাম <span className="text-red-500">*</span>
@@ -439,7 +530,6 @@ export default function ReportPage() {
                   </p>
                 </div>
 
-                {/* বিবরণ */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1.5">
                     বিস্তারিত বিবরণ <span className="text-red-500">*</span>
@@ -483,7 +573,6 @@ export default function ReportPage() {
                   </p>
                 </div>
 
-                {/* ইমেজ প্রিভিউ */}
                 {images.length > 0 && (
                   <div className="grid grid-cols-3 gap-3">
                     {images.map((img, index) => (
@@ -520,7 +609,6 @@ export default function ReportPage() {
                   </div>
                 )}
 
-                {/* ক্যামেরা বাটন (কোনো ছবি না থাকলে) */}
                 {images.length === 0 && (
                   <button
                     onClick={() => setShowCamera(true)}
@@ -540,7 +628,6 @@ export default function ReportPage() {
                   </button>
                 )}
 
-                {/* ক্যামেরা মোডাল */}
                 {showCamera && (
                   <CameraCapture
                     onCapture={(newImages) => {
@@ -553,7 +640,6 @@ export default function ReportPage() {
                   />
                 )}
 
-                {/* টিপস */}
                 <div className="bg-blue-50 p-4 rounded-xl">
                   <p className="text-sm text-blue-700 font-medium mb-1">
                     💡 ভালো ছবির টিপস
@@ -562,12 +648,13 @@ export default function ReportPage() {
                     <li>
                       • সমস্যাটি ক্লিয়ারভাবে দেখা যাচ্ছে কিনা নিশ্চিত করুন
                     </li>
-                    <li>• আশেপাশের পরিবেশও দেখান (লোকেশন বোঝার জন্য)</li>
+                    <li>• আশেপাশের পরিবেশও দেখান</li>
                     <li>• দিনের আলোতে ছবি তুলুন</li>
                   </ul>
                 </div>
               </div>
             )}
+
             {/* ========== স্টেপ ৪: লোকেশন ========== */}
             {currentStep === 4 && (
               <div className="space-y-6">
@@ -580,7 +667,6 @@ export default function ReportPage() {
                   </p>
                 </div>
 
-                {/* লোকেশন কার্ড */}
                 {location ? (
                   <div className="border-2 border-green-300 bg-green-50 rounded-2xl p-5">
                     <div className="flex items-center gap-2 mb-3">
@@ -609,7 +695,6 @@ export default function ReportPage() {
                   </div>
                 )}
 
-                {/* লোকেশন পিকার খোলার বাটন */}
                 <button
                   type="button"
                   onClick={() => setShowLocationPicker(true)}
@@ -619,7 +704,6 @@ export default function ReportPage() {
                   {location ? "লোকেশন পরিবর্তন করুন" : "লোকেশন নির্বাচন করুন"}
                 </button>
 
-                {/* লোকেশন পিকার মোডাল */}
                 {showLocationPicker && (
                   <LocationPicker
                     onSelect={(loc) => {
@@ -639,9 +723,85 @@ export default function ReportPage() {
               </div>
             )}
 
+            {/* ========== সাবমিট করার সময় আপলোড প্রোগ্রেস ========== */}
+           {/* ========== আপলোড প্রোগ্রেস ========== */}
+{isUploading && (
+  <div className="mt-6 bg-white border-2 border-blue-100 rounded-2xl p-5 shadow-lg">
+    {/* স্ট্যাটাস টেক্সট */}
+    <div className="flex items-center gap-3 mb-4">
+      {uploadProgress < 100 ? (
+        <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+      ) : (
+        <CheckCircle2 className="w-6 h-6 text-green-500" />
+      )}
+      <div>
+        <p className="font-semibold text-gray-900">
+          {uploadStatus || "প্রসেসিং..."}
+        </p>
+        <p className="text-sm text-gray-500">
+          দয়া করে পেজ বন্ধ করবেন না
+        </p>
+      </div>
+    </div>
+
+    {/* প্রগ্রেস বার */}
+    <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+      <div
+        className="h-full bg-gradient-to-r from-blue-500 to-green-500 rounded-full transition-all duration-500 ease-out"
+        style={{ width: `${uploadProgress}%` }}
+      />
+    </div>
+
+    {/* পার্সেন্টেজ */}
+    <div className="flex justify-between mt-2 text-xs text-gray-400">
+      <span>
+        {uploadProgress < 80
+          ? "ছবি আপলোড হচ্ছে..."
+          : uploadProgress < 100
+            ? "রিপোর্ট সেভ হচ্ছে..."
+            : "সম্পন্ন!"}
+      </span>
+      <span className="font-bold text-gray-600">{uploadProgress}%</span>
+    </div>
+
+    {/* স্টেপ ইন্ডিকেটর */}
+    <div className="flex items-center justify-center gap-1 mt-3">
+      {/* ছবি আপলোড স্টেপ */}
+      <div
+        className={`flex items-center gap-1 text-xs ${
+          uploadProgress >= 80 ? "text-green-600" : "text-gray-400"
+        }`}
+      >
+        <div
+          className={`w-2 h-2 rounded-full ${
+            uploadProgress >= 80 ? "bg-green-500" : "bg-gray-300"
+          }`}
+        />
+        ছবি
+        {uploadProgress >= 80 && " ✓"}
+      </div>
+
+      <div className="w-4 h-px bg-gray-300" />
+
+      {/* রিপোর্ট সেভ স্টেপ */}
+      <div
+        className={`flex items-center gap-1 text-xs ${
+          uploadProgress >= 100 ? "text-green-600" : "text-gray-400"
+        }`}
+      >
+        <div
+          className={`w-2 h-2 rounded-full ${
+            uploadProgress >= 100 ? "bg-green-500" : "bg-gray-300"
+          }`}
+        />
+        রিপোর্ট
+        {uploadProgress >= 100 && " ✓"}
+      </div>
+    </div>
+  </div>
+)}
             {/* ========== নেভিগেশন বাটন ========== */}
             <div className="flex gap-3 mt-8">
-              {/* ব্যাক বাটন */}
               {currentStep > 1 && (
                 <button
                   onClick={handlePrev}
@@ -652,7 +812,6 @@ export default function ReportPage() {
                 </button>
               )}
 
-              {/* নেক্সট / সাবমিট বাটন */}
               {currentStep < 4 ? (
                 <button
                   onClick={handleNext}
@@ -682,7 +841,7 @@ export default function ReportPage() {
               )}
             </div>
 
-            {/* স্টেপ ইন্ডিকেটর ডটস (মোবাইল) */}
+            {/* স্টেপ ডটস (মোবাইল) */}
             <div className="flex justify-center gap-2 mt-6 sm:hidden">
               {STEPS.map((step) => (
                 <div

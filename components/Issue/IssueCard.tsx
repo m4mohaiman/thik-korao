@@ -32,7 +32,7 @@ export default function IssueCard({ issue, onClick }: { issue: Issue; onClick: (
               {getStatusText(issue.status)}
             </span>
             <span>
-              {formatDistanceToNow(new Date(issue.createdAt), { locale: bn, addSuffix: true })}
+              {formatDistanceToNow(new Date(issue.created_at), { locale: bn, addSuffix: true })}
             </span>
           </div>
         </div>

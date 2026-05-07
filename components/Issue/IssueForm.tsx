@@ -77,9 +77,9 @@ export default function IssueForm() {
     location,
     status: "reported" as const,
     votes: 1,
-    votedBy: [deviceId],
+    voted_by: [deviceId],
     createdBy: deviceId,
-    createdAt: new Date(),
+    created_at: new Date(),
     updatedAt: new Date(),
     comments: [],
   };

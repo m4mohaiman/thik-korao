@@ -12,9 +12,9 @@ export interface Issue {
   };
   status: "reported" | "acknowledged" | "in-progress" | "resolved" | "rejected";
   votes: number;
-  votedBy: string[]; // device IDs to prevent duplicate votes
+  voted_by: string[]; // device IDs to prevent duplicate votes
   createdBy: string; // device ID
-  createdAt: Date;
+  created_at: Date;
   updatedAt: Date;
   comments: Comment[];
 }
@@ -23,5 +23,5 @@ export interface Comment {
   id: string;
   text: string;
   isOfficial: boolean; // government response
-  createdAt: Date;
+  created_at: Date;
 }

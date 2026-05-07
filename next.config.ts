@@ -9,17 +9,14 @@
 // next.config.js
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // ✅ Leaflet CSS সাপোর্ট
+  transpilePackages: ["react-leaflet", "leaflet"],
+  
+  // ✅ ইমেজ রিমোট
   images: {
     remotePatterns: [
-      {
-        protocol: "https",
-        hostname: "**",
-      },
+      { protocol: "https", hostname: "**" },
     ],
-    // local base64 images allow করতে
-    dangerouslyAllowSVG: true,
-    contentDispositionType: "attachment",
-    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
 };
 

@@ -277,10 +277,10 @@ export default function MapMarker({ issue, isSelected = false, onClick }: MapMar
   // লোকাল স্টোরেজ থেকে ভোট চেক
   useEffect(() => {
     const deviceId = localStorage.getItem("deviceId") || "";
-    if (deviceId && issue.votedBy.includes(deviceId)) {
+    if (deviceId && issue.voted_by.includes(deviceId)) {
       setHasVoted(true);
     }
-  }, [issue.votedBy]);
+  }, [issue.voted_by]);
 
   // ভোট হ্যান্ডলার
   const handleVote = async (e: React.MouseEvent) => {
@@ -344,7 +344,7 @@ function PopupContent({
   onViewDetails: () => void;
 }) {
   const statusText = getStatusText(issue.status);
-  const timeText = timeAgo(issue.createdAt);
+  const timeText = timeAgo(issue.created_at);
 
   // প্রোগ্রেস ইন্ডিকেটর (কাজ চলছে)
   const isInProgress = issue.status === "in-progress";
