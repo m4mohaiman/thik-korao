@@ -53,36 +53,41 @@ export default function IssueForm() {
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!location) {
-      alert("দয়া করে লোকেশন নির্বাচন করুন");
-      return;
-    }
+  e.preventDefault();
+  if (!location) {
+    alert("দয়া করে লোকেশন নির্বাচন করুন");
+    return;
+  }
 
-    setIsSubmitting(true);
-    const deviceId = localStorage.getItem("deviceId") || uuidv4();
-    localStorage.setItem("deviceId", deviceId);
+  setIsSubmitting(true);
+  const deviceId = localStorage.getItem("deviceId") || uuidv4();
+  localStorage.setItem("deviceId", deviceId);
 
-    const issue = {
-      id: uuidv4(),
-      title,
-      description,
-      category: category || "other",
-      images,
-      location,
-      status: "reported" as const,
-      votes: 1,
-      votedBy: [deviceId],
-      createdBy: deviceId,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      comments: [],
-    };
-
-    await addIssue(issue);
-    setIsSubmitting(false);
-    router.push("/");
+  const issue = {
+    id: uuidv4(),
+    title,
+    description,
+    // ✅ এক লাইনে টাইপ কাস্ট:
+    category: (
+      ["road", "electricity", "water", "garbage", "drainage", "other"].includes(category) 
+        ? category 
+        : "other"
+    ) as "road" | "electricity" | "water" | "garbage" | "drainage" | "other",
+    images,
+    location,
+    status: "reported" as const,
+    votes: 1,
+    votedBy: [deviceId],
+    createdBy: deviceId,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    comments: [],
   };
+
+  await addIssue(issue);
+  setIsSubmitting(false);
+  router.push("/");
+};
 
   return (
     <form onSubmit={handleSubmit} className="max-w-lg mx-auto p-4 space-y-6">
