@@ -1,5 +1,5 @@
 // src/components/Issue/IssueCard.tsx
-import { Issue } from "@/types";
+import { useIssueStore, type Issue } from "@/stores/issueStore";
 import VotingWidget from "../UI/VotingWidget";
 import { formatDistanceToNow } from "date-fns";
 import { bn } from "date-fns/locale";

@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Marker, Popup, useMap } from "react-leaflet";
 import { DivIcon } from "leaflet";
-import { Issue } from "@/types";
 import { useIssueStore } from "@/stores/issueStore";
 import Image from 'next/image'
 import {

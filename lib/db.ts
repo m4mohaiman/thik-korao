@@ -1,6 +1,8 @@
 // src/lib/db.ts
 import Dexie, { Table } from "dexie";
-import { Issue } from "@/types";
+import { useIssueStore, type Issue } from "@/stores/issueStore";
+
+
 
 class ThikKoraoDB extends Dexie {
   issues!: Table<Issue>;

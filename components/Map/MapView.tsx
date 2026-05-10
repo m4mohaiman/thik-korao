@@ -11,10 +11,11 @@ import {
 } from "react-leaflet";
 import { Icon, DivIcon } from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { useIssueStore } from "@/stores/issueStore";
 import { getCurrentPosition, reverseGeocode } from "@/lib/location";
 import { MapPin } from "lucide-react";
 import MapMarker from "./MapMarker";
+import { useIssueStore, type Issue } from "@/stores/issueStore";
+
 
 // ========== লোকেশন ট্র্যাকার ==========
 function LocationTracker() {
