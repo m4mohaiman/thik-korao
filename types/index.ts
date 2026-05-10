@@ -13,9 +13,9 @@ export interface Issue {
   status: "reported" | "acknowledged" | "in-progress" | "resolved" | "rejected";
   votes: number;
   voted_by: string[]; // device IDs to prevent duplicate votes
-  createdBy: string; // device ID
+  created_by: string; // device ID
   created_at: Date;
-  updatedAt: Date;
+  updated_at: Date;
   comments: Comment[];
 }
 

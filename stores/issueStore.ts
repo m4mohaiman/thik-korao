@@ -18,9 +18,9 @@ export interface Issue {
   status: "reported" | "acknowledged" | "in-progress" | "resolved" | "rejected";
   votes: number;
   voted_by: string[];
-  createdBy: string
+  created_by: string
   created_at: string;
-  updatedAt: string;
+  updated_at: string;
   comments: Comment[];
   profiles?: {
     full_name: string | null;
