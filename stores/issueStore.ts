@@ -25,7 +25,8 @@ export interface Issue {
   profiles?: {
     full_name: string | null;
     avatar_url: string | null;
-  };
+    email?: string | null;
+  } | null;
 }
 
 export interface Comment {
@@ -63,30 +64,31 @@ export const useIssueStore = create<IssueStore>((set, get) => ({
   isLoading: false,
 
   // ========== সব ইস্যু লোড ==========
-  loadIssues: async () => {
-    set({ isLoading: true });
+loadIssues: async () => {
+  set({ isLoading: true });
 
-    console.log("Fetching issues...");
+  const { data, error } = await supabase
+    .from("issues")
+    .select(`
+      *,
+      profiles:created_by (
+        full_name,
+        avatar_url
+      )
+    `)
+    .order("created_at", { ascending: false });
 
-    const { data, error } = await supabase
-      .from("issues")
-      .select("*")
-      .order("created_at", { ascending: false });
+  if (error) {
+    console.error("Load issues error:", error);
+    set({ isLoading: false });
+    return;
+  }
 
-    console.log("Supabase response:", { data, error });
-
-    if (error) {
-      console.error("Load issues error:", error);
-      set({ isLoading: false });
-      return;
-    }
-
-    console.log("Loaded issues:", data?.length);
-    set({
-      issues: data || [],
-      isLoading: false,
-    });
-  },
+  set({
+    issues: data || [],
+    isLoading: false,
+  });
+},
 
   // ========== নতুন ইস্যু অ্যাড ==========
   addIssue: async (issue) => {
@@ -141,18 +143,26 @@ export const useIssueStore = create<IssueStore>((set, get) => ({
   setSelectedIssue: (issue) => set({ selectedIssue: issue }),
 
   // ========== ID দিয়ে ফেচ ==========
-  fetchIssueById: async (id) => {
-    const { data, error } = await supabase
-      .from("issues")
-      .select("*")
-      .eq("id", id)
-      .single();
+fetchIssueById: async (id) => {
+  const { data, error } = await supabase
+    .from("issues")
+    .select(`
+      *,
+      profiles:created_by (
+        full_name,
+        avatar_url,
+        email
+      )
+    `)
+    .eq("id", id)
+    .single();
 
-    if (error) {
-      console.error("Fetch issue error:", error);
-      return;
-    }
+  if (error) {
+    console.error("Fetch issue error:", error);
+    return;
+  }
 
-    set({ selectedIssue: data as Issue });
-  },
+  console.log("Fetched issue with profile:", data); // ✅ চেক
+  set({ selectedIssue: data as Issue });
+},
 }));

@@ -350,7 +350,7 @@ function PopupContent({
   const isInProgress = issue.status === "in-progress";
 
   return (
-    <div className="p-0.5">
+    <div className="p-">
       {/* ইমেজ (থাকলে) */}
       {issue.images.length > 0 && (
         <div className="relative -mx-0.5 -mt-0.5 mb-3">
