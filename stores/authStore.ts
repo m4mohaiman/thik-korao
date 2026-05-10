@@ -11,6 +11,9 @@ interface Profile {
   full_name: string | null;
   role: "user" | "admin";
   avatar_url: string | null;
+  created_at: string;
+  updated_at: string;
+  phone: string | null;
 }
 
 interface AuthStore {

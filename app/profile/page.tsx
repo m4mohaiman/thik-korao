@@ -27,8 +27,10 @@ export default function ProfilePage() {
   const { user, profile, isAdmin, signOut, refreshProfile } = useAuthStore();
 
   const [isEditing, setIsEditing] = useState(false);
+  // const [fullName, setFullName] = useState(profile?.full_name || "");
+  // const [phone, setPhone] = useState(profile?.phone || "");
   const [fullName, setFullName] = useState(profile?.full_name || "");
-  const [phone, setPhone] = useState(profile?.phone || "");
+const [phone, setPhone] = useState(profile?.phone || "");
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
 
@@ -39,13 +41,6 @@ export default function ProfilePage() {
     }
   }, [profile, user, refreshProfile]);
 
-  // স্টেট সিঙ্ক
-  useEffect(() => {
-    if (profile) {
-      setFullName(profile.full_name || "");
-      setPhone(profile.phone || "");
-    }
-  }, [profile]);
 
   // লগইন না থাকলে রিডাইরেক্ট
   useEffect(() => {
