@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Marker, Popup, useMap } from "react-leaflet";
 import { DivIcon } from "leaflet";
-import { useIssueStore } from "@/stores/issueStore";
+import { useIssueStore , type Issue} from "@/stores/issueStore";
 import Image from 'next/image'
 import {
   Clock,
